@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D City Drive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+        }
+        #message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+        }
+        #welcome-message {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            z-index: 1000;
+        }
+        .blur {
+            filter: blur(5px);
+            pointer-events: none;
+        }
+        
+        #enter-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #enter-button {
+            padding: 20px 40px;
+            font-size: 24px;
+            background: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        #enter-button:hover {
+            transform: scale(1.1);
+        }
+
+        #muteButton {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1000;
+            transition: background 0.3s;
+        }
+
+        #muteButton:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        #score-display {
+            position: fixed;
+            bottom: 60px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 5px;
+            font-size: 18px;
+            z-index: 1000;
+        }
+
+        .score-popup {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #00ff00;
+            font-size: 24px;
+            font-weight: bold;
+            opacity: 0;
+            transition: all 0.5s;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .score-popup.active {
+            top: 80px;
+            opacity: 1;
+        }
+    </style>
+
+<audio id="audio" controls autoplay visibility: hidden> 
+    <source src="backgroundmusic.mp3" type="audio/mp3"> </audio>
+
+<audio id="sfx" controls autoplay loop visibility: hidden> 
+    <source src="Newsfx.MP3" type="audio/mp3">
+</audio>    
+</head>
+<body>
+    <div id="enter-screen">
+        <button id="enter-button">Enter Game</button>
+    </div>
+    <div id="message"></div>
+    <div id="loading">Loading Models...</div>
+    <div id="welcome-message">Welcome to the City! Drive close to vehicles to collect points. Go to the city mall to get the CA. Press F11 to go Fullscreen</div>
+    <button id="muteButton">Mute</button>
+    <div id="score-display">Score: 0</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var audio = document.getElementById("audio");
+            var sfx = document.getElementById("sfx");
+            var muteButton = document.getElementById("muteButton");
+        
+            // Set background music volume low
+            audio.volume = 0.25 ;
+            audio.loop = true;
+            // Set SFX volume higher and loop
+            sfx.volume = 6;
+            // sfx.loop = true;
+        
+            muteButton.addEventListener('click', function() {
+                audio.muted = !audio.muted;
+                // sfx.muted = !sfx.muted;
+                muteButton.textContent = audio.muted ? 'Unmute' : 'Mute';
+            });
+        });
+    </script>
+    <script>
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        renderer.domElement.classList.add('blur');
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(200, 500, 300);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+const starsGeometry = new THREE.BufferGeometry();
+const starsMaterial = new THREE.PointsMaterial({
+    color: 0xFFFFFF,
+    size: 0.5
+});
+
+const starsVertices = [];
+for(let i = 0; i < 5000; i++) {
+    const x = (Math.random() - 0.5) * 2000;
+    const y = (Math.random() - 0.5) * 2000;
+    const z = (Math.random() - 0.5) * 2000;
+    starsVertices.push(x, y, z);
+}
+
+starsGeometry.setAttribute('position', 
+    new THREE.Float32BufferAttribute(starsVertices, 3));
+const stars = new THREE.Points(starsGeometry, starsMaterial);
+scene.add(stars);
+
+// Adjust ambient light for night setting
+ambientLight.intensity = 0.2;        
+
+        // Ground
+        // const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        // const groundMaterial = new THREE.MeshStandardMaterial({ 
+        //     color: 0x333333,
+        //     roughness: 0.8,
+        // });
+        // const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        // ground.rotation.x = -Math.PI / 2;
+        // ground.receiveShadow = true;
+        // scene.add(ground);
+
+                // Ground
+        const textureLoader = new THREE.TextureLoader();
+        const groundTexture = textureLoader.load('ground.jpg');
+        groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(1, 1);
+
+    // Create ground
+        const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const groundMaterial = new THREE.MeshPhongMaterial({ map: groundTexture });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        scene.add(ground);  
+
+        // Car object
+        let car = new THREE.Group();
+        scene.add(car);
+
+        // Building definitions
+        const buildingDefinitions = [
+            {
+                position: { x: 20, y: 0, z: 20 },
+                rotation: { x: 0, y: 0, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+                modelPath: 'path/to/building1.gltf',
+                message: "Welcome to Shopping Mall!"
+            },
+            {
+                position: { x: -30, y: 0, z: -20 },
+                rotation: { x: 0, y: Math.PI / 4, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+                modelPath: '',
+                message: "Office Building"
+            },
+            {
+                position: { x: -100, y: 0, z: 300 },
+                rotation: { x: 0, y: -Math.PI / 1.5, z: 0 },
+                scale: { x: 2, y: 2, z: 2 },
+                modelPath: 'commercial/commercial.gltf',
+                message: "This is the Parking Garage. Visit the City Hall to get the CA"
+            },
+            {
+                position: { x: 40, y: 0, z: -40 },
+                rotation: { x: 0, y: Math.PI / 2, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+                modelPath: 'path/to/building4.gltf',
+                message: "Restaurant District"
+            },
+            {
+                position: { x: -300, y: 0, z: 350 },
+                rotation: { x: 0, y: -Math.PI / 1, z: 0 },
+                scale: { x: 0.8, y: 0.8, z: 0.8 },
+                modelPath: 'shopping/shopping.gltf',
+                message: "Shopping Center"
+            },
+            {
+                position: { x: 60, y: 0, z: 60 },
+                rotation: { x: 0, y: -Math.PI / 1.5, z: 0 },
+                scale: { x: 1, y: 1, z: 1 },
+
+                modelPath: 'tokyo/tokyo.gltf',
+                message: "City Hall. CA: 78d6PZWwkYpLtFG7rnuUkU6XgaNQcSASug6T6c83bnfh"                
+            }
+        ];
+
+// Add after buildingDefinitions array
+
+const lampDefinition = {
+    modelPath: 'lamp/lamp.gltf',  // Update with your lamp model path
+    scale: { x: 5, y: 7, z: 2 },
+    spacing: 20 // Distance between lamps in units
+};
+
+// Add after lamp definitions
+const carSpawnLamp = {
+    position: { x: -50, y: 0, z: -380 }, // Slightly in front of car spawn
+    scale: { x: 5, y: 7, z: 2 }
+};
+
+function addLampsAroundBuilding(building, scene) {
+    // Assuming each building has a roughly rectangular base
+    const buildingPos = building.position;
+    const buildingSize = 30; // Approximate building footprint size
+    
+    // Define lamp positions around building (4 corners + midpoints)
+    const lampPositions = [
+        { x: buildingPos.x - buildingSize, z: buildingPos.z - buildingSize },
+        { x: buildingPos.x + buildingSize, z: buildingPos.z - buildingSize },
+        { x: buildingPos.x - buildingSize, z: buildingPos.z + buildingSize },
+        { x: buildingPos.x + buildingSize, z: buildingPos.z + buildingSize },
+        { x: buildingPos.x, z: buildingPos.z - buildingSize },
+        { x: buildingPos.x, z: buildingPos.z + buildingSize },
+        { x: buildingPos.x - buildingSize, z: buildingPos.z },
+        { x: buildingPos.x + buildingSize, z: buildingPos.z }
+    ];
+
+    // Load and place lamps
+    lampPositions.forEach(pos => {
+        loader.load(lampDefinition.modelPath, (gltf) => {
+            const lamp = gltf.scene;
+            lamp.scale.set(
+                lampDefinition.scale.x,
+                lampDefinition.scale.y,
+                lampDefinition.scale.z
+            );
+            lamp.position.set(pos.x, 0, pos.z);
+            scene.add(lamp);
+            
+            // Add point light
+            const light = new THREE.PointLight(0xFFFFAA, 1, 50);
+            light.position.set(pos.x, 15, pos.z);
+            scene.add(light);
+        });
+    });
+}
+
+// Add after buildingDefinitions array
+const npcCarDefinitions = [
+    { modelPath: 'truck/lorry.gltf', scale: 6, rotation: 0 }, // Changed to -180 degrees
+    { modelPath: 'scene.gltf', scale: 2, rotation: 0 }, // No additional rotation for car
+];
+
+const npcCars = [];
+
+const mapCorners = [
+    { x: -3000, z: -3000 }, // Bottom Left
+    { x: 3000, z: -3000 },  // Bottom Right
+    { x: -3000, z: 3000 },  // Top Left
+    { x: 3000, z: 3000 }    // Top Right
+];
+
+const spawnPoints = [
+    // Corrected rotations to match direction of travel
+    { start: mapCorners[0], end: mapCorners[3], rotation: Math.atan2(2000, 2000) - Math.PI/12 },    // Bottom Left to Top Right
+    { start: mapCorners[1], end: mapCorners[2], rotation: Math.atan2(2000, -2000) - Math.PI/12 },   // Bottom Right to Top Left
+    { start: mapCorners[2], end: mapCorners[1], rotation: Math.atan2(-2000, 2000) - Math.PI/2 },   // Top Left to Bottom Right
+    { start: mapCorners[3], end: mapCorners[0], rotation: Math.atan2(-2000, -2000) - Math.PI/12 }   // Top Right to Bottom Left
+];
+
+const waypoints = [
+    { x: -300, z: -300 },
+    { x: 300, z: -300 },
+    { x: -300, z: 300 },
+    { x: 300, z: 300 },
+    { x: 0, z: -200 },
+    { x: 0, z: 200 },
+    { x: -200, z: 0 },
+    { x: 200, z: 0 }
+];
+
+const paths = [
+    [0, 4, 1],  // Bottom left to bottom right
+    [1, 5, 2],  // Bottom right to top left
+    [2, 6, 3],  // Top left to top right
+    [3, 7, 0],  // Top right to bottom left
+    [0, 6, 2],  // Alternative path 1
+    [1, 7, 3],  // Alternative path 2
+];
+
+function spawnNPCCars() {
+    spawnPoints.forEach(point => {
+        const randomCar = npcCarDefinitions[Math.floor(Math.random() * npcCarDefinitions.length)];
+        const randomPath = paths[Math.floor(Math.random() * paths.length)];
+        
+        loader.load(randomCar.modelPath, (gltf) => {
+            const npcCar = gltf.scene;
+            npcCar.scale.set(randomCar.scale, randomCar.scale, randomCar.scale);
+            npcCar.position.set(point.start.x, 0, point.start.z);
+            npcCar.rotation.y = point.rotation + randomCar.rotation;
+            scene.add(npcCar);
+            
+            npcCars.push({
+                model: npcCar,
+                speed: 0.5 + Math.random() * 0.3,
+                currentPath: randomPath,
+                currentWaypoint: 0,
+                direction: new THREE.Vector3()
+            });
+        });
+    });
+}
+
+function updateNPCCars() {
+    npcCars.forEach(npcCar => {
+        const currentWP = waypoints[npcCar.currentPath[npcCar.currentWaypoint]];
+        
+        // Calculate direction to current waypoint
+        npcCar.direction.set(
+            currentWP.x - npcCar.model.position.x,
+            0,
+            currentWP.z - npcCar.model.position.z
+        ).normalize();
+        
+        // Move towards waypoint
+        npcCar.model.position.x += npcCar.direction.x * npcCar.speed;
+        npcCar.model.position.z += npcCar.direction.z * npcCar.speed;
+        
+        // Update rotation to face movement direction
+        npcCar.model.rotation.y = Math.atan2(npcCar.direction.x, npcCar.direction.z);
+        
+        // Check if reached waypoint
+        const distanceToWaypoint = Math.sqrt(
+            Math.pow(npcCar.model.position.x - currentWP.x, 2) +
+            Math.pow(npcCar.model.position.z - currentWP.z, 2)
+        );
+        
+        if (distanceToWaypoint < 5) {
+            npcCar.currentWaypoint++;
+            if (npcCar.currentWaypoint >= npcCar.currentPath.length) {
+                // Reset to start with new random path
+                npcCar.currentWaypoint = 0;
+                npcCar.currentPath = paths[Math.floor(Math.random() * paths.length)];
+                npcCar.model.position.set(
+                    waypoints[npcCar.currentPath[0]].x,
+                    0,
+                    waypoints[npcCar.currentPath[0]].z
+                );
+            }
+        }
+    });
+}
+
+// Add initial position constant
+const INITIAL_CAR_POSITION = { x: -50, y: 0, z: -400 };
+
+// Add initial rotation constant
+const INITIAL_CAR_ROTATION = 0;
+
+// Add collision detection function
+function checkNPCCollisions() {
+    const playerBox = new THREE.Box3().setFromObject(car);
+    
+    for (const npcCar of npcCars) {
+        const npcBox = new THREE.Box3().setFromObject(npcCar.model);
+        if (playerBox.intersectsBox(npcBox)) {
+            // Reset to initial position
+            car.position.set(
+                INITIAL_CAR_POSITION.x,
+                INITIAL_CAR_POSITION.y,
+                INITIAL_CAR_POSITION.z
+            );
+            car.rotation.y = INITIAL_CAR_ROTATION;
+            carRotation = INITIAL_CAR_ROTATION;
+            carSpeed = 0;
+            break;
+        }
+    }
+}
+
+// Add collision detection function
+function checkNPCCollisions() {
+    const playerBox = new THREE.Box3().setFromObject(car);
+    
+    for (const npcCar of npcCars) {
+        const npcBox = new THREE.Box3().setFromObject(npcCar.model);
+        if (playerBox.intersectsBox(npcBox)) {
+            // Reset to initial position
+            car.position.set(
+                INITIAL_CAR_POSITION.x,
+                INITIAL_CAR_POSITION.y,
+                INITIAL_CAR_POSITION.z
+            );
+            car.rotation.y = INITIAL_CAR_ROTATION;
+            carRotation = INITIAL_CAR_ROTATION;
+            carSpeed = 0;
+            break;
+        }
+    }
+}
+
+function checkCollisions() {
+    const carBB = new THREE.Box3().setFromObject(car);
+    
+    for (const npcCar of npcCars) {
+        const npcBB = new THREE.Box3().setFromObject(npcCar.model);
+        if (carBB.intersectsBox(npcBB)) {
+            // Reset player car position
+            car.position.set(
+                INITIAL_CAR_POSITION.x,
+                INITIAL_CAR_POSITION.y,
+                INITIAL_CAR_POSITION.z
+            );
+            break;
+        }
+    }
+}
+
+// Add after scene setup
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+let engineSound;
+let gainNode;
+
+// Add after scene setup
+const sfxContext = new (window.AudioContext || window.webkitAudioContext)();
+// let engineSound;
+let engineGain;
+
+// Initialize engine sound
+function initEngineSFX() {
+    engineGain = sfxContext.createGain();
+    engineGain.connect(sfxContext.destination);
+    engineGain.gain.value = 0;
+
+    const sfxElement = document.getElementById('sfx');
+    const track = sfxContext.createMediaElementSource(sfxElement);
+    track.connect(engineGain);
+}
+
+// Update click handler with debug logs
+document.addEventListener('click', () => {
+    console.log('Click detected');
+    console.log('Audio context state:', audioContext.state);
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+            console.log('Audio context resumed');
+            initializeAudio();
+        });
+    }
+}, { once: true });
+
+document.getElementById('enter-button').addEventListener('click', function() {
+    document.querySelector('canvas').classList.remove('blur');
+    document.getElementById('enter-screen').style.display = 'none';
+    
+    // Initialize audio
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+            initializeAudio();
+        });
+    }
+    initEngineSFX();
+});
+
+        // Load manager to track all loading processes
+        const loadManager = new THREE.LoadingManager();
+        let loadedItems = 0;
+        const totalItems = buildingDefinitions.length + 1; // buildings + car
+
+        loadManager.onProgress = function(url, itemsLoaded, itemsTotal) {
+            loadedItems++;
+            document.getElementById('loading').textContent = 
+                `Loading Models... ${Math.floor((loadedItems/totalItems) * 100)}%`;
+        };
+
+        loadManager.onLoad = function() {
+            document.getElementById('loading').style.display = 'none';
+        };
+
+        // GLTF loader
+        const loader = new THREE.GLTFLoader(loadManager);
+
+        // Load car model
+        loader.load(
+            'scene.gltf',
+            function (gltf) {
+                car = gltf.scene;
+                car.scale.set(2, 2.2, 2);
+                car.position.set(-50, 0, -400);
+                car.rotation.y = -Math.PI; 
+                
+                car.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+                scene.add(car);
+            }
+        );
+
+        // Array to store building objects
+        const buildings = [];
+
+        // Load building models
+        buildingDefinitions.forEach((building, index) => {
+            const buildingGroup = new THREE.Group();
+            buildingGroup.position.set(
+                building.position.x,
+                building.position.y,
+                building.position.z
+            );
+            buildingGroup.userData.message = building.message;
+            
+            loader.load(
+                building.modelPath,
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(
+                        building.scale.x,
+                        building.scale.y,
+                        building.scale.z
+                    );
+                    model.rotation.set(
+                        building.rotation.x,
+                        building.rotation.y,
+                        building.rotation.z
+                    );
+
+                    model.traverse((node) => {
+                        if (node.isMesh) {
+                            node.castShadow = true;
+                            node.receiveShadow = true;
+                        }
+                    });
+
+                    buildingGroup.add(model);
+                },
+                undefined,
+                function (error) {
+                    console.error(`Error loading building ${index + 1}:`, error);
+                }
+            );
+
+            scene.add(buildingGroup);
+            buildings.push(buildingGroup);
+        });
+
+// Modify the building loading section to add lamps
+// Inside the buildingDefinitions.forEach loop, after loading each building:
+buildingDefinitions.forEach(buildingDef => {
+    loader.load(buildingDef.modelPath, (gltf) => {
+        const building = gltf.scene;
+        building.position.set(
+            buildingDef.position.x,
+            buildingDef.position.y,
+            buildingDef.position.z
+        );
+        building.rotation.set(
+            buildingDef.rotation.x,
+            buildingDef.rotation.y,
+            buildingDef.rotation.z
+        );
+        building.scale.set(
+            buildingDef.scale.x,
+            buildingDef.scale.y,
+            buildingDef.scale.z
+        );
+        scene.add(building);
+        
+        // Add lamps around the building
+        addLampsAroundBuilding(buildingDef, scene);
+    });
+});
+
+// Add after scene setup
+loader.load('lamp/lamp.gltf', (gltf) => {
+    const spawnLamp = gltf.scene;
+    spawnLamp.scale.set(
+        carSpawnLamp.scale.x,
+        carSpawnLamp.scale.y,
+        carSpawnLamp.scale.z
+    );
+    spawnLamp.position.set(
+        carSpawnLamp.position.x,
+        carSpawnLamp.position.y,
+        carSpawnLamp.position.z
+    );
+    scene.add(spawnLamp);
+    
+    // Add point light
+    const light = new THREE.PointLight(0xFFFFAA, 1, 50);
+    light.position.set(
+        carSpawnLamp.position.x,
+        15,
+        carSpawnLamp.position.z
+    );
+    scene.add(light);
+});
+
+        // Camera setup
+        camera.position.set(-50, 50, -50);
+        camera.lookAt(car.position);
+
+        // Controls
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.key] = true);
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        // Message display
+        const messageElement = document.getElementById('message');
+        let currentMessage = '';
+
+        function showMessage(msg) {
+            if (currentMessage !== msg) {
+                messageElement.textContent = msg;
+                messageElement.style.display = 'block';
+                currentMessage = msg;
+            }
+        }
+
+        function hideMessage() {
+            messageElement.style.display = 'none';
+            currentMessage = '';
+        }
+
+        // Car movement and collision detection
+        // const carSpeed = 0.5;
+        // const rotationSpeed = 0.03;
+        // let carRotation = 0;
+
+        function checkCollisions() {
+            let colliding = false;
+            const carBox = new THREE.Box3().setFromObject(car);
+            
+            buildings.forEach(building => {
+                const buildingBox = new THREE.Box3().setFromObject(building);
+                
+                if (buildingBox.intersectsBox(carBox)) {
+                    showMessage(building.userData.message);
+                    colliding = true;
+                }
+            });
+            
+            if (!colliding) {
+                hideMessage();
+            }
+        }
+
+    // Car movement and collision detection
+    const maxSpeed = 1;
+    const acceleration = 0.01;
+    const deceleration = 0.01;
+    const friction = 0.005;
+    const rotationSpeed = 0.03;
+    let carSpeed = 0;
+    let carRotation = 0;
+
+    const GROUND_BOUNDS = {
+        minX: -495,  // Left boundary
+        maxX: 495,   // Right boundary
+        minZ: -495,  // Bottom boundary
+        maxZ: 495    // Top boundary
+    };
+
+    let carTiltRotation = 0;
+    const MAX_TILT = Math.PI / 48; // 15 degrees
+    const TILT_SPEED = 0.1;
+
+    let score = 0;
+    let collisionCount = 0;
+    let lastScoreUpdate = Date.now();
+    const PROXIMITY_THRESHOLD = 50; // Distance to earn points
+    const COLLISION_RESET_THRESHOLD = 5;
+
+    // Add after car movement variables
+    const FALL_HEIGHT = 100;
+    const GRAVITY = 0.5;
+    const FLICKER_INTERVAL = 100;
+    let isCarFalling = false;
+    let fallSpeed = 0;
+    let flickerVisible = true;
+    let lastFlickerTime = 0;
+
+    // Add falling animation function
+    function startFallingAnimation() {
+        isCarFalling = true;
+        car.position.y = FALL_HEIGHT;
+        fallSpeed = 0;
+        lastFlickerTime = Date.now();
+    }
+
+    function updateCar() {
+        // Store previous position
+        const prevPosition = {
+            x: car.position.x,
+            z: car.position.z
+        };
+
+        if (keys['ArrowUp']) {
+            carSpeed = Math.min(carSpeed + acceleration, maxSpeed);
+            if (!engineSound && audioContext.state === 'suspended') {
+                audioContext.resume().then(() => initializeAudio());
+            }
+            // Fade in engine sound
+            if (engineGain) {
+                engineGain.gain.linearRampToValueAtTime(0.3, sfxContext.currentTime + 0.01);
+            }
+        } else if (keys['ArrowDown']) {
+            carSpeed = Math.max(carSpeed - deceleration, -maxSpeed);
+            // Fade in engine sound for deceleration
+            if (engineGain) {
+                engineGain.gain.linearRampToValueAtTime(0.2, sfxContext.currentTime + 0.1);
+            }
+        } else {
+            // Apply friction
+            if (carSpeed > 0) {
+                carSpeed = Math.max(carSpeed - friction, 0);
+            } else if (carSpeed < 0) {
+                carSpeed = Math.min(carSpeed + friction, 0);
+            }
+            // Fade out engine sound when not accelerating/decelerating
+            if (engineGain) {
+                engineGain.gain.linearRampToValueAtTime(0, sfxContext.currentTime + 0.5);
+            }
+        }
+
+        // Only allow steering when car is moving
+        if (Math.abs(carSpeed) > 0.01) {
+            const steeringMultiplier = carSpeed >= 0 ? 1 : -1;
+            
+            if (keys['ArrowLeft']) {
+                carRotation += rotationSpeed * steeringMultiplier * 0.4;
+                // Add left tilt
+                carTiltRotation = THREE.MathUtils.lerp(
+                    carTiltRotation,
+                    -MAX_TILT,
+                    TILT_SPEED
+                );
+            } else if (keys['ArrowRight']) {
+                carRotation -= rotationSpeed * steeringMultiplier * 0.4;
+                // Add right tilt
+                carTiltRotation = THREE.MathUtils.lerp(
+                    carTiltRotation,
+                    MAX_TILT,
+                    TILT_SPEED
+                );
+            } else {
+                // Reset tilt when not turning
+                carTiltRotation = THREE.MathUtils.lerp(
+                    carTiltRotation,
+                    0,
+                    TILT_SPEED
+                );
+            }
+        }
+
+        car.position.x += Math.sin(carRotation) * carSpeed;
+        car.position.z += Math.cos(carRotation) * carSpeed;
+        car.rotation.y = carRotation;
+        car.rotation.z = carTiltRotation;
+
+        // Check boundaries and prevent going beyond
+        if (car.position.x < GROUND_BOUNDS.minX) {
+            car.position.x = GROUND_BOUNDS.minX;
+            carSpeed = 0.5;  // Stop the car
+        }
+        if (car.position.x > GROUND_BOUNDS.maxX) {
+            car.position.x = GROUND_BOUNDS.maxX;
+            carSpeed = 0.5;
+        }
+        if (car.position.z < GROUND_BOUNDS.minZ) {
+            car.position.z = GROUND_BOUNDS.minZ;
+            carSpeed = 0.5;
+        }
+        if (car.position.z > GROUND_BOUNDS.maxZ) {
+            car.position.z = GROUND_BOUNDS.maxZ;
+            carSpeed = 0.5;
+        }
+
+        // Update engine sound volume based on speed
+        if (gainNode) {
+            const targetVolume = Math.abs(carSpeed) / maxSpeed;
+            gainNode.gain.setTargetAtTime(targetVolume * 0.3, audioContext.currentTime, 0.1);
+        }
+    }
+
+    function checkBuildingCollisions() {
+        const carBB = new THREE.Box3().setFromObject(car);
+        let collision = false;
+        
+        buildingDefinitions.forEach((buildingDef, index) => {
+            if (buildings[index]) {
+                const buildingBB = new THREE.Box3().setFromObject(buildings[index]);
+                
+                if (carBB.intersectsBox(buildingBB)) {
+                    collision = true;
+                    document.getElementById('message').style.display = 'block';
+                    document.getElementById('message').textContent = buildingDef.message;
+                }
+            }
+        });
+        
+        if (!collision) {
+            document.getElementById('message').style.display = 'none';
+        }
+    }
+
+    function showScoreAnimation() {
+        const popup = document.createElement('div');
+        popup.className = 'score-popup';
+        popup.textContent = '+1';
+        document.body.appendChild(popup);
+        
+        // Trigger animation
+        setTimeout(() => popup.classList.add('active'), 10);
+        
+        // Remove after animation
+        setTimeout(() => {
+            popup.remove();
+        }, 1000);
+    }
+
+    function checkProximityScore() {
+        const playerPosition = car.position;
+        let nearNPC = false;
+        
+        npcCars.forEach(npcCar => {
+            const distance = playerPosition.distanceTo(npcCar.model.position);
+            if (distance < PROXIMITY_THRESHOLD) {
+                nearNPC = true;
+            }
+        });
+        
+        const currentTime = Date.now();
+        if (nearNPC && currentTime - lastScoreUpdate >= 1000) {
+            score++;
+            lastScoreUpdate = currentTime;
+            document.getElementById('score-display').textContent = `Score: ${score}`;
+            showScoreAnimation();
+        }
+    }
+
+    // Update checkNPCCollisions function
+    function checkNPCCollisions() {
+        const playerBox = new THREE.Box3().setFromObject(car);
+        
+        for (const npcCar of npcCars) {
+            const npcBox = new THREE.Box3().setFromObject(npcCar.model);
+            if (playerBox.intersectsBox(npcBox)) {
+                collisionCount++;
+                if (collisionCount >= COLLISION_RESET_THRESHOLD) {
+                    score = 0;
+                    collisionCount = 0;
+                    document.getElementById('score-display').textContent = `Score: ${score}`;
+                }
+                car.position.x = INITIAL_CAR_POSITION.x;
+                car.position.z = INITIAL_CAR_POSITION.z;
+                startFallingAnimation();
+                break;
+            }
+        }
+    }
+
+        function updateCamera() {
+        const offset = 15; // Distance behind the car
+        camera.position.x = car.position.x - Math.sin(carRotation) * offset;
+        camera.position.y = car.position.y + 3; // Height of the camera
+        camera.position.z = car.position.z - Math.cos(carRotation) * offset;
+        camera.lookAt(car.position);
+    }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isCarFalling) {
+                // Apply gravity
+                fallSpeed += GRAVITY;
+                car.position.y -= fallSpeed;
+                
+                // Flicker effect
+                const currentTime = Date.now();
+                if (currentTime - lastFlickerTime > FLICKER_INTERVAL) {
+                    flickerVisible = !flickerVisible;
+                    car.visible = flickerVisible;
+                    lastFlickerTime = currentTime;
+                }
+                
+                // Reset when hitting ground
+                if (car.position.y <= 0) {
+                    car.position.y = 0;
+                    car.visible = true;
+                    isCarFalling = false;
+                    carRotation = INITIAL_CAR_ROTATION;
+                    car.rotation.y = INITIAL_CAR_ROTATION;
+                    carSpeed = 0;
+                }
+            }
+            
+            checkProximityScore();
+            updateCar();
+            updateCamera();
+            updateNPCCars();
+            checkNPCCollisions();
+            checkBuildingCollisions();
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+        // Call spawnNPCCars after scene setup
+        spawnNPCCars();
+
+        // Add after scene setup
+        setTimeout(() => {
+            const welcomeMsg = document.getElementById('welcome-message');
+            welcomeMsg.style.display = 'none';
+        }, 10000);
+    </script>
+</body>
+</html>

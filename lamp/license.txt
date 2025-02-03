@@ -1,0 +1,8 @@
+Model Information:
+* title:	Stylized Historical Street Light
+* source:	https://sketchfab.com/3d-models/stylized-historical-street-light-4c9b09e3d0284db0b961f2fbaa729cc8
+* author:	Zuhaib Khoso (https://sketchfab.com/zuhaibkhoso)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
