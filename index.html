@@ -791,7 +791,7 @@ loader.load('lamp/lamp.gltf', (gltf) => {
             z: car.position.z
         };
 
-        if (keys['ArrowUp']) {
+        if (keys['w']) {  // Changed from ArrowUp
             carSpeed = Math.min(carSpeed + acceleration, maxSpeed);
             if (!engineSound && audioContext.state === 'suspended') {
                 audioContext.resume().then(() => initializeAudio());
@@ -800,7 +800,7 @@ loader.load('lamp/lamp.gltf', (gltf) => {
             if (engineGain) {
                 engineGain.gain.linearRampToValueAtTime(0.3, sfxContext.currentTime + 0.01);
             }
-        } else if (keys['ArrowDown']) {
+        } else if (keys['s']) {  // Changed from ArrowDown
             carSpeed = Math.max(carSpeed - deceleration, -maxSpeed);
             // Fade in engine sound for deceleration
             if (engineGain) {
@@ -823,7 +823,7 @@ loader.load('lamp/lamp.gltf', (gltf) => {
         if (Math.abs(carSpeed) > 0.01) {
             const steeringMultiplier = carSpeed >= 0 ? 1 : -1;
             
-            if (keys['ArrowLeft']) {
+            if (keys['a']) {  // Changed from ArrowLeft
                 carRotation += rotationSpeed * steeringMultiplier * 0.4;
                 // Add left tilt
                 carTiltRotation = THREE.MathUtils.lerp(
@@ -831,7 +831,7 @@ loader.load('lamp/lamp.gltf', (gltf) => {
                     -MAX_TILT,
                     TILT_SPEED
                 );
-            } else if (keys['ArrowRight']) {
+            } else if (keys['d']) {  // Changed from ArrowRight
                 carRotation -= rotationSpeed * steeringMultiplier * 0.4;
                 // Add right tilt
                 carTiltRotation = THREE.MathUtils.lerp(
