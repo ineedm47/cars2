@@ -1018,5 +1018,79 @@ loader.load('lamp/lamp.gltf', (gltf) => {
             welcomeMsg.style.display = 'none';
         }, 10000);
     </script>
+    <script>
+    let audioInitialized = false;
+
+    function initAudio() {
+        if (audioInitialized) return;
+        
+        const audio = document.getElementById("audio");
+        const sfx = document.getElementById("sfx");
+        
+        // Create promise to handle audio load
+        const audioPromise = audio.play();
+        const sfxPromise = sfx.play();
+
+        if (audioPromise !== undefined) {
+            audioPromise
+                .then(() => {
+                    audio.volume = 0.25;
+                    audio.loop = true;
+                })
+                .catch(error => {
+                    console.log("Audio playback failed:", error);
+                });
+        }
+
+        if (sfxPromise !== undefined) {
+            sfxPromise
+                .then(() => {
+                    sfx.volume = 6;
+                    sfx.loop = true;
+                })
+                .catch(error => {
+                    console.log("SFX playback failed:", error);
+                });
+        }
+        
+        audioInitialized = true;
+    }
+
+    // Update enter button click handler
+    document.getElementById('enter-button').addEventListener('click', function() {
+        document.querySelector('canvas').classList.remove('blur');
+        document.getElementById('enter-screen').style.display = 'none';
+        initAudio();
+    });
+
+    // Add click anywhere to start
+    document.addEventListener('click', function() {
+        if (!audioInitialized) {
+            initAudio();
+        }
+    }, { once: true });
+
+    // Replace the existing mute button event listener with:
+
+    document.getElementById('muteButton').addEventListener('click', function() {
+        const audio = document.getElementById("audio");
+        const sfx = document.getElementById("sfx");
+        
+        // Toggle mute state for both audio elements
+        audio.muted = !audio.muted;
+        sfx.muted = !sfx.muted;
+        
+        // Update button text
+        this.textContent = audio.muted ? 'Unmute' : 'Mute';
+        
+        // Also mute the Web Audio API contexts if they exist
+        if (audioContext && gainNode) {
+            gainNode.gain.value = audio.muted ? 0 : audio.volume;
+        }
+        if (sfxContext && engineGain) {
+            engineGain.gain.value = sfx.muted ? 0 : sfx.volume;
+        }
+    });
+</script>
 </body>
 </html>
