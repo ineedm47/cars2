@@ -125,6 +125,33 @@
             top: 80px;
             opacity: 1;
         }
+
+        #graphicsButton {
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1000;
+        }
+
+        #fps-counter {
+            position: fixed;
+            bottom: 20px;          /* Changed from top to bottom */
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 14px;
+            z-index: 1000;
+        }
     </style>
 
 <audio id="audio" controls autoplay visibility: hidden> 
@@ -143,6 +170,8 @@
     <div id="welcome-message">Welcome to the City! Drive close to vehicles to collect points. Go to the city mall to get the CA. Press F11 to go Fullscreen</div>
     <button id="muteButton">Mute</button>
     <div id="score-display">Score: 0</div>
+    <button id="graphicsButton">Switch to Low Graphics</button>
+    <div id="fps-counter">FPS: 0</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     
@@ -189,6 +218,11 @@
         directionalLight.shadow.mapSize.width = 2048;
         directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
+
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+        const fpsElement = document.getElementById('fps-counter');
 
 const starsGeometry = new THREE.BufferGeometry();
 const starsMaterial = new THREE.PointsMaterial({
@@ -967,6 +1001,17 @@ loader.load('lamp/lamp.gltf', (gltf) => {
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
+
+            const currentTime = performance.now();
+            frameCount++;
+            
+            if (currentTime - lastFpsUpdate > 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdate));
+                fpsElement.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastFpsUpdate = currentTime;
+            }
+            
             
             if (isCarFalling) {
                 // Apply gravity
@@ -1017,6 +1062,59 @@ loader.load('lamp/lamp.gltf', (gltf) => {
             const welcomeMsg = document.getElementById('welcome-message');
             welcomeMsg.style.display = 'none';
         }, 10000);
+
+        // Add after scene setup
+        let isHighQuality = true;
+
+        function setGraphicsQuality(high) {
+            if (high) {
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                ambientLight.intensity = 0.2;
+                
+                // Enable all point lights
+                scene.traverse((object) => {
+                    if (object.isPointLight) {
+                        object.visible = true;
+                    }
+                });
+                
+                // Enable shadows for all objects
+                scene.traverse((object) => {
+                    if (object.isMesh) {
+                        object.castShadow = true;
+                        object.receiveShadow = true;
+                    }
+                });
+            } else {
+                renderer.setPixelRatio(1);
+                renderer.shadowMap.enabled = false;
+                ambientLight.intensity = 0.4; // Increase ambient to compensate
+                
+                // Disable all point lights except main ones
+                scene.traverse((object) => {
+                    if (object.isPointLight) {
+                        object.visible = false;
+                    }
+                });
+                
+                // Disable shadows
+                scene.traverse((object) => {
+                    if (object.isMesh) {
+                        object.castShadow = false;
+                        object.receiveShadow = false;
+                    }
+                });
+            }
+        }
+
+        // Add button event listener
+        document.getElementById('graphicsButton').addEventListener('click', function() {
+            isHighQuality = !isHighQuality;
+            setGraphicsQuality(isHighQuality);
+            this.textContent = isHighQuality ? 'Switch to Low Graphics' : 'Switch to High Graphics';
+        });
     </script>
     <script>
     let audioInitialized = false;
